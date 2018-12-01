@@ -4,6 +4,7 @@ import re
 import time
 import random
 import base64
+import json
 
 import collections.abc
 
@@ -16,7 +17,7 @@ import dash_html_components as html
 
 sizedRE = re.compile(r'_\d\d\d\d?[.]')
 
-tumblrsPath = 'downloads/'
+tumblrsPath = '../blogs/'
 
 def encode_image(path):
     extension = path.split('.')[-1]
@@ -24,7 +25,7 @@ def encode_image(path):
         return 'data:image/{};base64,{}'.format(extension,base64.b64encode(f.read()).decode('utf-8'))
         S
 
-unknowns = ['autoplay', 'allow', 'align', 'border', 'imageanchor']
+unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor']
 
 def filterAttributes(a):
     ret = {}
@@ -254,8 +255,18 @@ class Entry(object):
     def date(self):
         return dateutil.parser.parse(self['Date'])
 
-def loadEntries(path, entryType):
-    with open(path, encoding = 'utf8') as f:
+def loadEntries(entryPath):
+    if not os.path.isfile(entryPath):
+        if os.path.isfile(entryPath + '.json'):
+            entryPath = entryPath + '.json'
+        elif os.path.isfile(entryPath + '.txt'):
+            entryPath = entryPath + '.txt'
+        else:
+            raise FileNotFoundError(entryPath)
+    entryType, entryFormat = os.path.basename(entryPath).split('.')
+
+    entries = []
+    with open(entryPath, encoding = 'utf8') as f:
         entries = []
         dat = {}
         inBody = False
@@ -290,7 +301,7 @@ def listAccounts(path = tumblrsPath):
     targets = []
     for e in os.scandir(path):
         for v in ['texts', 'images', 'answers', 'links']:
-            if os.path.isfile(os.path.join(e.path, f'{v}.txt')):
+            if os.path.isfile(os.path.join(e.path, f'{v}.txt')) or os.path.isfile(os.path.join(e.path, f'{v}.json')):
                 targets.append(e.name)
                 break
     return targets
@@ -300,9 +311,9 @@ class Account(object):
         self.name = name
         self.path = os.path.join(tumblrsPath, name)
         self.inDash = inDash
-        self.postTypes = [e.name[:-4] for e in os.scandir(self.path) if e.name.endswith('.txt') and not e.name.startswith('video')]
+        self.postTypes = [e.name.split('.')[0] for e in os.scandir(self.path) if (e.name.endswith('.txt') or e.name.endswith('.json')) and not e.name.startswith('video')]
         self.currentType = 'texts' if 'texts' in self.postTypes else self.postTypes[0]
-        self.posts = {self.currentType : loadEntries(self._join(self.currentType + '.txt'), self.currentType) }
+        self.posts = {self.currentType : loadEntries(self._join(self.currentType)) }
         self._tags = {}
 
         self.currentTag = 'None'
@@ -310,7 +321,7 @@ class Account(object):
     @property
     def entries(self):
         if self.currentType not in self.posts:
-            self.posts[self.currentType] = loadEntries(self._join(self.currentType + '.txt'), self.currentType)
+            self.posts[self.currentType] = loadEntries(self._join(self.currentType))
         return self.posts[self.currentType]
 
     @property
