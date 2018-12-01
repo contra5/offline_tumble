@@ -10,6 +10,7 @@ import os
 import os.path
 import json
 import random
+import webbrowser
 
 import tumdis
 import dash_reusable_components as drc
@@ -125,6 +126,8 @@ app.layout = html.Div([
 )
 def update_post_value(new_account):
     print(f"new_account {new_account}")
+    global startingAccountName
+    startingAccountName = new_account
     return new_account
 
 @app.callback(
@@ -315,4 +318,5 @@ def update_post_value(account, button_vals):
 
 
 if __name__ == '__main__':
+    webbrowser.open('http://127.0.0.1:8050/', new=2)
     app.run_server(debug=True)
