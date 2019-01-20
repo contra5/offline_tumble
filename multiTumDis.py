@@ -14,7 +14,6 @@ import collections.abc
 
 import bs4
 import dateutil.parser
-import dash_html_components as html
 
 import utils
 
@@ -51,8 +50,8 @@ class BackendManager(object):
 
         logging.info(f"Worker started with: {len(self.names)} blogs found")
 
-    def __call__(self, property, *args, **kwargs):
-        self.writeQueue.put((property, args, kwargs))
+    def __call__(self, property, *args):
+        self.writeQueue.put((property, *args))
         return self.getQue()
 
     def __repr__(self):
@@ -63,16 +62,16 @@ class BackendManager(object):
 
     def currentHTML(self):
         return self('getHTML',
-                     blogName = self.currentBlogInfo['blogName'],
-                     postType = self.currentBlogInfo['postType'],
-                     postTag = self.currentBlogInfo['postTag'],
-                     postIndex = self.currentBlogInfo['postIndex'],
+                     self.currentBlogInfo['blogName'],
+                     self.currentBlogInfo['postType'],
+                     self.currentBlogInfo['postTag'],
+                     self.currentBlogInfo['postIndex'],
                      )
 
     def startDisplay(self, startingBlog = None):
         if startingBlog is None:
             startingBlog = self.names[random.randint(0, len(self.names) - 1)]
-
+        logging.info(f"Starting display with: {startingBlog}")
         self.loadBlog(startingBlog)
 
         return self.currentHTML()
@@ -132,16 +131,16 @@ class MultiCollection(multiprocessing.Process):
     def loadBlog(self, blogName):
         if blogName not in self.blogs:
             self.blogs['blogName'] = Blog(os.path.join(self.path, blogName), blogName)
-        return self.blogs['blogName'].getInfo()
+        return self.blogs['blogName'].setupInfoDict()
 
-    def getHTML(self, *, blogName, postType, postTag, postIndex):
+    def getHTML(self, blogName, postType, postTag, postIndex):
         return self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
 
-    def runTask(self, task, *args, **kwargs):
-        logging.info(f"Running: ({task} {args} {kwargs})")
+    def runTask(self, task, *args):
+        logging.info(f"Running: {task}({args})")
         try:
             f = getattr(self, task)
-            ret = f(*args, **kwargs)
+            ret = f(*args)
         except AttributeError:
             raise RuntimeError(f"Bad command passed: {task}")
         self.putQue(ret)
@@ -173,119 +172,91 @@ class Blog(object):
     def __init__(self, path, name):
         self.name = name
         self.path = path
-        self.postTypes = [e.name.split('.')[0] for e in os.scandir(self.path) if (e.name.endswith('.txt') or e.name.endswith('.json')) and not e.name.startswith('video')]
-        self.currentType = 'texts' if 'texts' in self.postTypes else self.postTypes[0]
-        self.posts = {self.currentType : loadEntries(self._join(self.currentType)) }
-        self._tags = {}
+        self.postTypes = self.getPostTypes()
+        #self.currentType = 'texts' if 'texts' in self.postTypes else self.postTypes[0]
+        self.tags = {}
+        self.posts = {}
+        self.images = {}
 
-        self.currentTag = 'None'
+    def getPostTypes(self):
+        pTypes = []
+        for e in os.scandir(self.path):
+            if e.name.endswith('.txt') and not e.name.startswith('video'):
+                pTypes.append(e.name.split('.')[0])
+        return tuple(sorted(pTypes))
 
-    @property
-    def entries(self):
-        if self.currentType not in self.posts:
-            self.posts[self.currentType] = loadEntries(self._join(self.currentType))
-        return self.posts[self.currentType]
+    def getTypeEntries(self, postType):
+        if postType not in self.posts:
+            self.posts[postType] = utils.loadEntries(self.path, postType)
+        return self.posts[postType]
 
-    @property
-    def tags(self):
-        if self.currentType not in self._tags:
-            tags = {}
-            for i,e in enumerate(self.entries):
+    def genTypeTagsDict(self, postType):
+        if postType not in self.tags:
+            typeTags = {}
+            for i,e in enumerate(self.getTypeEntries(postType)):
                 for t in e.tags:
                     try:
-                        tags[t].append(e)
+                        typeTags[t].append(e)
                     except KeyError:
-                        tags[t] = [e]
-            self._tags[self.currentType] = tags
-        return self._tags[self.currentType]
+                        typeTags[t] = [e]
+            self.tags[postType] = typeTags
+        return self.tags[postType]
 
-    def __len__(self):
-        return len(self.currentTagValues)
+    def getPostHTML(self, postType, postTag, postIndex):
+        if postTag is None:
+            entry = self.getTypeEntries(postType)[postIndex]
+        else:
+            entry = self.genTypeTagsDict(postType)[postTag][postIndex]
+        if entry.localizedHTML is None:
+            entry.localizedHTML= self.localizeHTML(entry.html)
+        return entry.localizedHTML 
 
     def __repr__(self):
-        return f"< Blog {self.name} {len(self)} entries >"
-
-    def __getitem__(self, key):
-        return self.currentTagValues[key]
+        return f"<Blog {self.name} {self.postTypes}>"
 
     def _join(self, entry):
         return os.path.join(self.path, entry)
 
-    def __call__(self, key):
-        return self.localizeHTML(self[key].html)
-
-    def sortedTags(self, countTuple = False, count = False):
-        if count:
-            return [f"{len(e)} {t}" for t, e in sorted(self.tags.items(), key = lambda x: len(x[1]), reverse = True)]
-        elif countTuple:
-            return [(len(e), t) for t, e in sorted(self.tags.items(), key = lambda x: len(x[1]), reverse = True)]
+    def getSortedTags(self, postType, withCounts = True):
+        if withCounts:
+            return tuple([(len(e), t) for t, e in sorted(self.genTypeTagsDict(postType).items(), key = lambda x: len(x[1]), reverse = True)])
         else:
-            return [t for t, e in sorted(self.tags.items(), key = lambda x: len(x[1]), reverse = True)]
+            return tuple([t for t, e in sorted(self.genTypeTagsDict(postType).items(), key = lambda x: len(x[1]), reverse = True)])
 
-    @property
-    def currentTagValues(self):
-        if self.currentTag == 'None':
-            return self.entries
+    def setupInfoDict(self):
+        infosDict =  {
+            'blogName' : self.name,
+            'postTypes' : self.postTypes,
+            'postType' : 'texts' if 'texts' in self.postTypes else self.postTypes[0],
+            'postTag' : None,
+            'postIndex' : 0,
+        }
+        infosDict['typeTags'] = self.getSortedTags(infosDict['postType'], withCounts = False)
+        infosDict['numPosts'] = len(self.genTypeTagsDict(infosDict['postType']))
+        return infosDict
+
+    def updateImage(self, img):
+        srcName = os.path.basename(img.get('src'))
+        if srcName in self.images:
+            return self.images[srcName]
+        testPath = self._join(srcName)
+        if os.path.isfile(testPath):
+            self.images[srcName] = utils.encode_image(testPath)
+            return self.images[srcName]
         else:
-            return self.tags[self.currentTag]
+            testPath2 = sizedRE.sub('_1280.', srcName)
+            if os.path.isfile(testPath2):
+                self.images[srcName] = utils.encode_image(testPath2)
+                return self.images[srcName]
+            if os.path.isfile(testPath):
+                i.replaceWith(soup.new_tag("img", src=encode_image(testPath), **{"width" : i.get('width')}))
+        return None
 
     def localizeHTML(self, target):
-        #Sreturn target
         target = str(target)
         soup = bs4.BeautifulSoup(target, 'lxml')
         for i in soup.findAll('img'):
-            srcName = os.path.basename(i.get('src'))
-            testPath = self._join(srcName)
-            if os.path.isfile(testPath):
-                i.replaceWith(soup.new_tag("img", src=encode_image(testPath), **{"width" : i.get('width')}))
-            else:
-                testPath = sizedRE.sub('_1280.', srcName)
-                if os.path.isfile(testPath):
-                    i.replaceWith(soup.new_tag("img", src=encode_image(testPath), **{"width" : i.get('width')}))
-        if not self.inDash:
-            return str(soup)
-        else:
-            dashed = toDashHTML(soup.body)
-            return dashed
-
-def loadEntries(entryPath):
-    if not os.path.isfile(entryPath):
-        if os.path.isfile(entryPath + '.json'):
-            entryPath = entryPath + '.json'
-        elif os.path.isfile(entryPath + '.txt'):
-            entryPath = entryPath + '.txt'
-        else:
-            raise FileNotFoundError(entryPath)
-    entryType, entryFormat = os.path.basename(entryPath).split('.')
-
-    entries = []
-    with open(entryPath, encoding = 'utf8') as f:
-        entries = []
-        dat = {}
-        inBody = False
-        for e in f:
-            if inBody:
-                if e.startswith('Tags:'):
-                    k, *v = e.split(':')
-                    dat[k] = ':'.join(v).strip()
-                    inBody = False
-                    entries.append(Entry(dat))
-                    dat = {}
-                else:
-                    try:
-                        dat['text'] += e
-                    except KeyError:
-                        dat['text'] = e
-            elif len(e) == 1:
-                pass
-            else:
-                k, *v = e.split(':')
-                dat[k] = ':'.join(v).strip()
-                if entryType == 'texts' and e.startswith('Title:'):
-                    inBody = True
-                elif entryType == 'images' and e.startswith('Photo caption:'):
-                    inBody = True
-                    dat['text'] = ':'.join(v).strip()
-                elif entryType not in ['images', 'texts'] and e.startswith('Reblog name:'):
-                    inBody = True
-    return sorted(entries, key = lambda x : x.date, reverse = True)
+            newImg = self.updateImage(i)
+            if newImg is not None:
+                i.replaceWith(soup.new_tag("img", src=newImg, **{"width" : i.get('width')}))
+        return utils.toDashHTML(soup.body)
