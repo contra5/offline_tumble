@@ -32,17 +32,15 @@ class MultiDashFront(multiTumDis.BackendManager):
     def addDrawCallbacks(self):
         self.addDraw('tumblr_entry', 'children', self.currentHTML, ('blog', 'type', 'tag', 'index'))
 
-
         self.addDraw('type_selector', 'options', self.genTypesDict, ('blog',))
         self.addDraw('type_selector', 'value', lambda : self['data-postType'], ('blog',))
-        self.addDraw('tags_selector', 'options', self.genCurrentTagOptions, ('blog', 'type'))
+        self.addDraw('tags_selector', 'options', lambda : self.genCurrentTagOptions(withNum = True), ('blog', 'type'))
         self.addDraw('tags_selector', 'value', lambda : self['data-postTag'], ('blog', 'type'))
         self.addDraw('current_tags', 'options', lambda : self.genCurrentTagOptions(withNum = False), ('blog', 'type', 'tag', 'index'))
         self.addDraw('current_tags', 'value', lambda : self['data-postTags'], ('blog', 'type', 'tag', 'index'))
         self.addDraw('post_selector', 'max', lambda : self['data-maxIndex'], ('blog', 'type', 'tag'))
         self.addDraw('post_selector', 'marks', self.genPostSelectorMarks, ('blog', 'type', 'tag'))
         self.addDraw('post_selector', 'value', lambda : self['data-postIndex'], ('blog', 'type', 'tag'))
-
 
     def addDraw(self, outputName, outputValue, func, inputTargets):
         def drawFunc(*updateVals):
@@ -62,7 +60,7 @@ class MultiDashFront(multiTumDis.BackendManager):
     def addUpdateCallbacks(self):
         def changeBlog(new_blogName, current_count):
             self.loadBlog(new_blogName)
-            logging.info(f"Update blog: {current_count + 1} loading new blog: {new_blogName} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update blog: {current_count + 1} loading new blog: {new_blogName} current state: {self.currentBlogInfo}")
             return current_count + 1
 
         def changePostType(new_postType, current_count):
@@ -70,20 +68,20 @@ class MultiDashFront(multiTumDis.BackendManager):
             self['data-postTag'] = 'None'
             self['data-postIndex'] = 0
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.info(f"Update postType: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update postType: {current_count + 1} current state: {self.currentBlogInfo}")
             return current_count + 1
 
         def changePostTag(new_postTag, current_count):
             self['data-postTag'] = new_postTag
             self['data-postIndex'] = 0
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.info(f"Update postTag: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update postTag: {current_count + 1} current state: {self.currentBlogInfo}")
             return current_count + 1
 
         def changePostIndex(new_postIndex, current_count):
             self['data-postIndex'] = new_postIndex
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.info(f"Update postIndex: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update postIndex: {current_count + 1} current state: {self.currentBlogInfo}")
             return current_count + 1
 
         self.app.callback(
@@ -115,7 +113,6 @@ class MultiDashFront(multiTumDis.BackendManager):
         self.addState('data-postType', 'type_selector')
         self.addState('data-postTag', 'tags_selector')
         self.addState('data-postIndex', 'post_selector')
-
 
     def addState(self, valueName, selectorName):
 

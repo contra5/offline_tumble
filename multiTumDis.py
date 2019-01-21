@@ -192,7 +192,10 @@ class MultiCollection(multiprocessing.Process):
         return self.blogs['blogName'].setupInfoDict()
 
     def getHTML(self, blogName, postType, postTag, postIndex):
-        return self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
+        tstart = time.time()
+        htmlDat = self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
+        logging.info(f"getHTML({blogName}, {postType}, {postTag}, {postIndex}) took {tstart - time.time():.2f}s")
+        return htmlDat
 
     def getDerivedInfos(self, blogName, postType, postTag, postIndex):
         return self.blogs['blogName'].getDerivedInfos(postType, postTag, postIndex)
@@ -321,7 +324,7 @@ class Blog(object):
 
     def getDerivedInfos(self, postType, postTag, postIndex):
         infosDict = {}
-        infosDict['data-typeTags'] = self.getSortedTags(postType, withCounts = False)
+        infosDict['data-typeTags'] = self.getSortedTags(postType, withCounts = True)
         infosDict['data-maxIndex'] = len(self.getEntries(postType, postTag)) - 1
         infosDict['data-postTags'] = self.getPostTags(postType, postTag, postIndex)
         return infosDict
