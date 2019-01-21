@@ -13,6 +13,7 @@ import logging
 import collections.abc
 
 import bs4
+import numpy as np
 import dateutil.parser
 
 import utils
@@ -36,7 +37,6 @@ class BackendManager(object):
         self.writeQueue = multiprocessing.Queue()
         self.readQueue = multiprocessing.Queue()
 
-
         self.currentBlogInfo = None
 
         self.TumblrBlogs = MultiCollection(self.writeQueue, self.readQueue, self.path)
@@ -47,12 +47,19 @@ class BackendManager(object):
             raise RuntimeError(f"Worker had problems starting up: isReady {isReady}")
 
         self.names = self('getNames')
+        self.startDisplay()
 
         logging.info(f"Worker started with: {len(self.names)} blogs found")
 
     def __call__(self, property, *args):
         self.writeQueue.put((property, *args))
         return self.getQue()
+
+    def __getitem__(self, key):
+        return self.currentBlogInfo[key]
+
+    def __setitem__(self, key, value):
+        self.currentBlogInfo[key] = value
 
     def __repr__(self):
         return f"<BackendManager {self.path} with {len(self.names)} blogs>"
@@ -62,10 +69,35 @@ class BackendManager(object):
 
     def currentHTML(self):
         return self('getHTML',
-                     self.currentBlogInfo['blogName'],
-                     self.currentBlogInfo['postType'],
-                     self.currentBlogInfo['postTag'],
-                     self.currentBlogInfo['postIndex'],
+                     self['data-blogName'],
+                     self['data-postType'],
+                     self['data-postTag'],
+                     self['data-postIndex'],
+                     )
+
+    def getCurrentMax(self):
+        self['data-maxIndex'] = self('getMaxIndex',
+                                    self['data-blogName'],
+                                    self['data-postType'],
+                                    self['data-postTag'],
+                                    )
+        return self['data-maxIndex']
+
+    def getCurrentTags(self):
+        self['data-postTags'] = self('getPostTags',
+                                    self['data-blogName'],
+                                    self['data-postType'],
+                                    self['data-postTag'],
+                                    self['data-postIndex'],
+                                    )
+        return self['data-postTags']
+
+    def currentURL(self):
+        return self('getURL',
+                     self['data-blogName'],
+                     self['data-postType'],
+                     self['data-postTag'],
+                     self['data-postIndex'],
                      )
 
     def startDisplay(self, startingBlog = None):
@@ -84,6 +116,25 @@ class BackendManager(object):
 
     def getTags(self, blog):
         return self
+
+    def genCurrentTagOptions(self, withNum = True):
+        ret = [{'value' : 'None', 'label' : f'{self["data-maxIndex"]} None'}]
+        for c, t in self('getBlogTags', self['data-blogName'], self['data-postType']):
+            ret.append({
+                'value' : t,
+                'label' : f"{c} {t}" if  withNum else t,
+            })
+        return ret
+
+    def genPostSelectorMarks(self):
+        maxVal = self['data-maxIndex']
+        if maxVal >= 10:
+            return {int(i) : str(i) for i in np.linspace(0, maxVal , 10, dtype = int)}
+        else:
+            return {i : f"{i}" for i in range(maxVal)}
+
+    def genTypesDict(self):
+        return [{'value' : t, 'label' : t } for t in self['data-postTypes']]
 
     def end(self):
         logging.info("Ending worker")
@@ -120,7 +171,7 @@ class MultiCollection(multiprocessing.Process):
         self.outputQ.put(dat)
 
     def findNewTask(self):
-        logging.info(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
+        logging.debug(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
         time.sleep(.5)
         return None
 
@@ -135,6 +186,18 @@ class MultiCollection(multiprocessing.Process):
 
     def getHTML(self, blogName, postType, postTag, postIndex):
         return self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
+
+    def getMaxIndex(self, blogName, postType, postTag):
+        return len(self.blogs['blogName'].getEntries(postType, postTag)) - 1
+
+    def getPostTags(self, blogName, postType, postTag, postIndex):
+        return self.blogs['blogName'].getPostTags(postType, postTag, postIndex)
+
+    def getURL(self, blogName, postType, postTag, postIndex):
+        return self.blogs['blogName'].getPostURL(postType, postTag, postIndex)
+
+    def getBlogTags(self, blogName, postType):
+        return self.blogs['blogName'].getSortedTags(postType, withCounts = True)
 
     def runTask(self, task, *args):
         logging.info(f"Running: {task}({args})")
@@ -151,7 +214,7 @@ class MultiCollection(multiprocessing.Process):
         try:
             while True:
                 newTask = self.checkQue()
-                logging.info(f"New task: {newTask}")
+                logging.debug(f"New task: {newTask}")
                 if not newTask:
                     newTask = self.findNewTask()
                 elif newTask[0] == 'end':
@@ -159,7 +222,7 @@ class MultiCollection(multiprocessing.Process):
                     self.putQue('done')
                     break
                 else:
-                    logging.info(f"task received: {newTask}")
+                    #logging.info(f"task received: {newTask}")
                     self.runTask(*newTask)
         except Exception as e:
             logging.error("Error occured in worker thread")
@@ -202,14 +265,26 @@ class Blog(object):
             self.tags[postType] = typeTags
         return self.tags[postType]
 
-    def getPostHTML(self, postType, postTag, postIndex):
-        if postTag is None:
-            entry = self.getTypeEntries(postType)[postIndex]
+    def getEntries(self, postType, postTag):
+        if postTag == 'None':
+            entries = self.getTypeEntries(postType)
         else:
-            entry = self.genTypeTagsDict(postType)[postTag][postIndex]
+            entries = self.genTypeTagsDict(postType)[postTag]
+        return entries
+
+    def getPostHTML(self, postType, postTag, postIndex):
+        entry = self.getEntries(postType, postTag)[postIndex]
         if entry.localizedHTML is None:
             entry.localizedHTML= self.localizeHTML(entry.html)
-        return entry.localizedHTML 
+        return entry.localizedHTML
+
+    def getPostURL(self, postType, postTag, postIndex):
+        entry = self.getEntries(postType, postTag)[postIndex]
+        return entry.get('Post url', '')
+
+    def getPostTags(self, postType, postTag, postIndex):
+        entry = self.getEntries(postType, postTag)[postIndex]
+        return entry.tags
 
     def __repr__(self):
         return f"<Blog {self.name} {self.postTypes}>"
@@ -225,14 +300,15 @@ class Blog(object):
 
     def setupInfoDict(self):
         infosDict =  {
-            'blogName' : self.name,
-            'postTypes' : self.postTypes,
-            'postType' : 'texts' if 'texts' in self.postTypes else self.postTypes[0],
-            'postTag' : None,
-            'postIndex' : 0,
+            'data-blogName' : self.name,
+            'data-postTypes' : self.postTypes,
+            'data-postType' : 'texts' if 'texts' in self.postTypes else self.postTypes[0],
+            'data-postTag' : 'None',
+            'data-postIndex' : 0,
         }
-        infosDict['typeTags'] = self.getSortedTags(infosDict['postType'], withCounts = False)
-        infosDict['numPosts'] = len(self.genTypeTagsDict(infosDict['postType']))
+        infosDict['data-typeTags'] = self.getSortedTags(infosDict['data-postType'], withCounts = False)
+        infosDict['data-maxIndex'] = len(self.genTypeTagsDict(infosDict['data-postType'])) - 1
+        infosDict['data-postTags'] = self.getPostTags(infosDict['data-postType'], infosDict['data-postTag'], infosDict['data-postIndex'])
         return infosDict
 
     def updateImage(self, img):

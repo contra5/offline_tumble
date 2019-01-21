@@ -2,6 +2,7 @@ import os
 import os.path
 import dateutil
 import bs4
+import base64
 
 import dash_html_components
 
@@ -85,7 +86,7 @@ class Entry(object):
 
     @property
     def tags(self):
-        return [t for t in self.get('Tags', '').strip().split(', ') if len(t) > 0]
+        return tuple([t for t in self.get('Tags', '').strip().split(', ') if len(t) > 0])
 
     @property
     def date(self):

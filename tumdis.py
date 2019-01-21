@@ -19,33 +19,6 @@ sizedRE = re.compile(r'_\d\d\d\d?[.]')
 
 tumblrsPath = '../blogs/'
 
-def encode_image(path):
-    extension = path.split('.')[-1]
-    with open(path, 'rb') as f:
-        return 'data:image/{};base64,{}'.format(extension,base64.b64encode(f.read()).decode('utf-8'))
-        S
-
-unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor']
-
-def filterAttributes(a):
-    ret = {}
-    for k, v in a.items():
-        if k == 'class':
-            k = 'className'
-        elif k in unknowns:
-            continue
-        ret[k] = v
-    return ret
-
-def toDashHTML(t):
-    children = []
-    if isinstance(t, bs4.NavigableString):
-        return str(t)
-    else:
-        for c in t.children:
-            children.append(toDashHTML(c))
-    return getattr(html, t.name.title(), html.Div)(children, **filterAttributes(t.attrs))
-
 class DashDis(object):
     def __init__(self, path = tumblrsPath):
         self.path = path
