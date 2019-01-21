@@ -75,6 +75,14 @@ class BackendManager(object):
                      self['data-postIndex'],
                      )
 
+    def getDerivedInfos(self):
+        return self('getDerivedInfos',
+                    self['data-blogName'],
+                    self['data-postType'],
+                    self['data-postTag'],
+                    self['data-postIndex'],
+                    )
+
     def getCurrentMax(self):
         self['data-maxIndex'] = self('getMaxIndex',
                                     self['data-blogName'],
@@ -84,13 +92,12 @@ class BackendManager(object):
         return self['data-maxIndex']
 
     def getCurrentTags(self):
-        self['data-postTags'] = self('getPostTags',
+        return self('getPostTags',
                                     self['data-blogName'],
                                     self['data-postType'],
                                     self['data-postTag'],
                                     self['data-postIndex'],
                                     )
-        return self['data-postTags']
 
     def currentURL(self):
         return self('getURL',
@@ -161,7 +168,7 @@ class MultiCollection(multiprocessing.Process):
 
     def checkQue(self):
         try:
-            task = self.inputQ.get_nowait()
+            task = self.inputQ.get()
         except queue.Empty:
             return False
         else:
@@ -172,7 +179,7 @@ class MultiCollection(multiprocessing.Process):
 
     def findNewTask(self):
         logging.debug(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
-        time.sleep(.5)
+        #time.sleep(.5)
         return None
 
     def getNames(self, *args):
@@ -186,6 +193,9 @@ class MultiCollection(multiprocessing.Process):
 
     def getHTML(self, blogName, postType, postTag, postIndex):
         return self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
+
+    def getDerivedInfos(self, blogName, postType, postTag, postIndex):
+        return self.blogs['blogName'].getDerivedInfos(postType, postTag, postIndex)
 
     def getMaxIndex(self, blogName, postType, postTag):
         return len(self.blogs['blogName'].getEntries(postType, postTag)) - 1
@@ -306,9 +316,14 @@ class Blog(object):
             'data-postTag' : 'None',
             'data-postIndex' : 0,
         }
-        infosDict['data-typeTags'] = self.getSortedTags(infosDict['data-postType'], withCounts = False)
-        infosDict['data-maxIndex'] = len(self.genTypeTagsDict(infosDict['data-postType'])) - 1
-        infosDict['data-postTags'] = self.getPostTags(infosDict['data-postType'], infosDict['data-postTag'], infosDict['data-postIndex'])
+        infosDict.update(self.getDerivedInfos(infosDict['data-postType'],infosDict['data-postTag'],infosDict['data-postIndex']))
+        return infosDict
+
+    def getDerivedInfos(self, postType, postTag, postIndex):
+        infosDict = {}
+        infosDict['data-typeTags'] = self.getSortedTags(postType, withCounts = False)
+        infosDict['data-maxIndex'] = len(self.getEntries(postType, postTag)) - 1
+        infosDict['data-postTags'] = self.getPostTags(postType, postTag, postIndex)
         return infosDict
 
     def updateImage(self, img):

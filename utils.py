@@ -6,7 +6,7 @@ import base64
 
 import dash_html_components
 
-unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor']
+unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor', 'allowfullscreen']
 
 def listBlogs(path):
     targets = []
