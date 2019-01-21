@@ -30,36 +30,36 @@ class MultiDashFront(multiTumDis.BackendManager):
         self.addDrawCallbacks()
 
     def addDrawCallbacks(self):
-        self.addDraw('tumblr_entry', 'children', self.currentHTML)
+        self.addDraw('tumblr_entry', 'children', self.currentHTML, ('blog', 'type', 'tag', 'index'))
 
 
-        self.addDraw('type_selector', 'options', self.genTypesDict)
-        #self.addDraw('type_selector', 'value', lambda : self['data-postType'])
-        self.addDraw('tags_selector', 'options', self.genCurrentTagOptions)
-        #self.addDraw('tags_selector', 'value', lambda : self['data-postTag'])
-        self.addDraw('current_tags', 'options', lambda : self.genCurrentTagOptions(withNum = False))
-        #self.addDraw('current_tags', 'value', lambda : self['data-postTags'])
-        self.addDraw('post_selector', 'max', lambda : self['data-maxIndex'])
-        self.addDraw('post_selector', 'marks', self.genPostSelectorMarks)
+        self.addDraw('type_selector', 'options', self.genTypesDict, ('blog',))
+        self.addDraw('type_selector', 'value', lambda : self['data-postType'], ('blog',))
+        self.addDraw('tags_selector', 'options', self.genCurrentTagOptions, ('blog', 'type'))
+        self.addDraw('tags_selector', 'value', lambda : self['data-postTag'], ('blog', 'type'))
+        self.addDraw('current_tags', 'options', lambda : self.genCurrentTagOptions(withNum = False), ('blog', 'type', 'tag', 'index'))
+        self.addDraw('current_tags', 'value', lambda : self['data-postTags'], ('blog', 'type', 'tag', 'index'))
+        self.addDraw('post_selector', 'max', lambda : self['data-maxIndex'], ('blog', 'type', 'tag'))
+        self.addDraw('post_selector', 'marks', self.genPostSelectorMarks, ('blog', 'type', 'tag'))
+        self.addDraw('post_selector', 'value', lambda : self['data-postIndex'], ('blog', 'type', 'tag'))
 
-    def addDraw(self, outputName, outputValue, func):
-        def drawFunc(update_count):
+
+    def addDraw(self, outputName, outputValue, func, inputTargets):
+        def drawFunc(*updateVals):
             return func()
+        inputsMap ={
+            'blog' : Input('state_container','data-updateBlog'),
+            'type' : Input('state_container','data-updateType'),
+            'tag' : Input('state_container','data-updateTag'),
+            'index' : Input('state_container','data-updateIndex'),
+        }
+
         self.app.callback(
                         Output(outputName, outputValue),
-                        inputs=[Input('state_container', 'data-update')],
+                        inputs=[inputsMap[i] for i in inputTargets],
                         )(drawFunc)
 
     def addUpdateCallbacks(self):
-        inputDeps = [
-            Input('state_container','data-blogName'),
-            Input('state_container','data-postType'),
-            Input('state_container','data-postTag'),
-            Input('state_container','data-postIndex'),
-        ]
-        outputDep = Output('state_container', 'data-update')
-        statedep = State('state_container', 'data-update')
-
         def changeBlog(new_blogName, current_count):
             self.loadBlog(new_blogName)
             logging.info(f"Update blog: {current_count + 1} loading new blog: {new_blogName} current state: {self.currentBlogInfo}")
