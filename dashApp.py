@@ -29,6 +29,32 @@ class MultiDashFront(multiTumDis.BackendManager):
 
         self.addDrawCallbacks()
 
+        self.addButtonCallbacks()
+
+    def addButtonCallbacks(self):
+        def buttonPress(next_presses, previous_presses, intialState, currentLoc, maxVal):
+            postIndex, num_nexts, num_prevs  = intialState
+            if next_presses > num_nexts:
+                postIndex = (currentLoc + 1) % maxVal
+                num_nexts += 1
+            else:
+                postIndex = (currentLoc - 1) % maxVal
+                num_prevs += 1
+            return (postIndex, num_nexts, num_prevs)
+
+        self.app.callback(
+                        Output('state_container', 'data-buttons'),
+                        inputs = [
+                                Input('next_button', 'n_clicks'),
+                                Input('previous_button', 'n_clicks'),
+                        ],
+                        state = [
+                                State('state_container', 'data-buttons'),
+                                State('post_selector', 'value'),
+                                State('post_selector', 'max'),
+                                ],
+                        )(buttonPress)
+
     def addDrawCallbacks(self):
         self.addDraw('tumblr_entry', 'children', self.currentHTML, ('blog', 'type', 'tag', 'index'))
 
@@ -40,8 +66,17 @@ class MultiDashFront(multiTumDis.BackendManager):
         self.addDraw('current_tags', 'value', lambda : self['data-postTags'], ('blog', 'type', 'tag', 'index'))
         self.addDraw('post_selector', 'max', lambda : self['data-maxIndex'], ('blog', 'type', 'tag'))
         self.addDraw('post_selector', 'marks', self.genPostSelectorMarks, ('blog', 'type', 'tag'))
-        self.addDraw('post_selector', 'value', lambda : self['data-postIndex'], ('blog', 'type', 'tag'))
+        self.addDraw('post_selector', 'value', lambda : self['data-postIndex'], ('blog', 'type', 'tag', 'button'))
+        """
+        def positionUpdate(button_state, *otherStates):
+            if button_state[2] != self['data-postIndex']:
+                return button_state[2]
 
+        self.app.callback(
+                    Output('post_selector', 'value'),
+                    inputs = [Input('state_container', 'data-buttons')]
+                    )(positionUpdate)
+        """
     def addDraw(self, outputName, outputValue, func, inputTargets):
         def drawFunc(*updateVals):
             return func()
@@ -50,6 +85,7 @@ class MultiDashFront(multiTumDis.BackendManager):
             'type' : Input('state_container','data-updateType'),
             'tag' : Input('state_container','data-updateTag'),
             'index' : Input('state_container','data-updateIndex'),
+            'button' : Input('state_container','data-updateButtonIndex'),
         }
 
         self.app.callback(
@@ -84,6 +120,12 @@ class MultiDashFront(multiTumDis.BackendManager):
             logging.debug(f"Update postIndex: {current_count + 1} current state: {self.currentBlogInfo}")
             return current_count + 1
 
+        def changePostButtonIndex(new_buttonsPresses, current_count):
+            self['data-postIndex'] = new_buttonsPresses[0]
+            self.currentBlogInfo.update(self.getDerivedInfos())
+            logging.debug(f"Update PostButtonIndex: {current_count + 1} current state: {self.currentBlogInfo}")
+            return current_count + 1
+
         self.app.callback(
                 Output('state_container', 'data-updateBlog'),
                 inputs=[Input('state_container','data-blogName')],
@@ -108,6 +150,12 @@ class MultiDashFront(multiTumDis.BackendManager):
                 state=[State('state_container', 'data-updateIndex')],
                 )(changePostIndex)
 
+        self.app.callback(
+                Output('state_container', 'data-updateButtonIndex'),
+                inputs=[Input('state_container','data-buttons')],
+                state=[State('state_container', 'data-updateButtonIndex')],
+                )(changePostButtonIndex)
+
     def addStateCallbacks(self):
         self.addState('data-blogName', 'blog_selector')
         self.addState('data-postType', 'type_selector')
@@ -128,7 +176,7 @@ class MultiDashFront(multiTumDis.BackendManager):
     def genMainNav(self):
         dataDict = self.currentBlogInfo.copy()
         dataDict['data-buttons'] = (0,0,0)
-        for k in ['data-updateIndex', 'data-updateTag', 'data-updateType', 'data-updateBlog']:
+        for k in ['data-updateIndex', 'data-updateTag', 'data-updateType', 'data-updateBlog', 'data-updateButtonIndex']:
             dataDict[k] = 0
         nav = html.Div([
             html.Div(id='state_container',
@@ -188,7 +236,7 @@ def main():
     logging.basicConfig(
                     format='%(asctime)s Dash %(levelname)s: %(message)s',
                     datefmt='%I:%M:%S',
-                    level=logging.DEBUG)
+                    level=logging.INFO)
     App = MultiDashFront( '../blogs/')
     App.run()
 

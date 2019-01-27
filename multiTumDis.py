@@ -24,12 +24,6 @@ tumblrsPath = '../blogs/'
 
 unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor']
 
-logging.basicConfig(
-                format='%(asctime)s %(levelname)s: %(message)s',
-                datefmt='%I:%M:%S',
-                level=logging.INFO)
-
-
 class BackendManager(object):
     def __init__(self, path = tumblrsPath):
         self.path = path
@@ -126,7 +120,7 @@ class BackendManager(object):
 
     def genCurrentTagOptions(self, withNum = True):
         ret = [{'value' : 'None', 'label' : f'{self["data-maxIndex"]} None'}]
-        for c, t in self('getBlogTags', self['data-blogName'], self['data-postType']):
+        for c, t in self['data-typeTags']:
             ret.append({
                 'value' : t,
                 'label' : f"{c} {t}" if  withNum else t,
