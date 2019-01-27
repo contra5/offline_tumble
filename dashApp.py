@@ -96,7 +96,7 @@ class MultiDashFront(multiTumDis.BackendManager):
     def addUpdateCallbacks(self):
         def changeBlog(new_blogName, current_count):
             self.loadBlog(new_blogName)
-            logging.debug(f"Update blog: {current_count + 1} loading new blog: {new_blogName} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update blog: {current_count + 1} loading new blog: {new_blogName}")
             return current_count + 1
 
         def changePostType(new_postType, current_count):
@@ -104,26 +104,26 @@ class MultiDashFront(multiTumDis.BackendManager):
             self['data-postTag'] = 'None'
             self['data-postIndex'] = 0
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update postType: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update postType: {current_count + 1}")
             return current_count + 1
 
         def changePostTag(new_postTag, current_count):
             self['data-postTag'] = new_postTag
             self['data-postIndex'] = 0
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update postTag: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update postTag: {current_count + 1}")
             return current_count + 1
 
         def changePostIndex(new_postIndex, current_count):
             self['data-postIndex'] = new_postIndex
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update postIndex: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update postIndex: {current_count + 1}")
             return current_count + 1
 
         def changePostButtonIndex(new_buttonsPresses, current_count):
             self['data-postIndex'] = new_buttonsPresses[0]
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update PostButtonIndex: {current_count + 1} current state: {self.currentBlogInfo}")
+            logging.debug(f"Update PostButtonIndex: {current_count + 1}")
             return current_count + 1
 
         self.app.callback(
@@ -236,7 +236,7 @@ def main():
     logging.basicConfig(
                     format='%(asctime)s Dash %(levelname)s: %(message)s',
                     datefmt='%I:%M:%S',
-                    level=logging.INFO)
+                    level=logging.DEBUG)
     App = MultiDashFront( '../blogs/')
     App.run()
 
