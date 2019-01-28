@@ -190,14 +190,14 @@ class MultiCollection(multiprocessing.Process):
         if blogName not in self.blogs:
             self.blogs['blogName'] = Blog(os.path.join(self.path, blogName), blogName)
         blog = self.blogs['blogName'].setupInfoDict()
-        logging.info(f"loadBlog({blogName}) took {tstart - time.time():.2f}s")
+        logging.info(f"loadBlog({blogName}) took {time.time() - tstart:.3f}s")
         return blog
 
 
     def getHTML(self, blogName, postType, postTag, postIndex):
         tstart = time.time()
         htmlDat = self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
-        logging.info(f"getHTML({blogName}, {postType}, {postTag}, {postIndex}) took {tstart - time.time():.2f}s")
+        logging.info(f"getHTML({blogName}, {postType}, {postTag}, {postIndex}) took {time.time() - tstart:.3f}s")
         return htmlDat
 
     def getDerivedInfos(self, blogName, postType, postTag, postIndex):
