@@ -103,6 +103,8 @@ def filterAttributes(a):
     for k, v in a.items():
         if k == 'class':
             k = 'className'
+        elif k == 'style':
+            continue
         elif k in unknowns:
             continue
         ret[k] = v

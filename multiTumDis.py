@@ -22,7 +22,12 @@ sizedRE = re.compile(r'_\d\d\d\d?[.]')
 
 tumblrsPath = '../blogs/'
 
-unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor']
+unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor', 'color']
+
+logging.basicConfig(
+                format='%(asctime)s Backend %(levelname)s: %(message)s',
+                datefmt='%I:%M:%S',
+                level=logging.INFO)
 
 class BackendManager(object):
     def __init__(self, path = tumblrsPath):
@@ -181,9 +186,13 @@ class MultiCollection(multiprocessing.Process):
         return self.names
 
     def loadBlog(self, blogName):
+        tstart = time.time()
         if blogName not in self.blogs:
             self.blogs['blogName'] = Blog(os.path.join(self.path, blogName), blogName)
-        return self.blogs['blogName'].setupInfoDict()
+        blog = self.blogs['blogName'].setupInfoDict()
+        logging.info(f"loadBlog({blogName}) took {tstart - time.time():.2f}s")
+        return blog
+
 
     def getHTML(self, blogName, postType, postTag, postIndex):
         tstart = time.time()
