@@ -40,12 +40,16 @@
    height: 100%;
    float: left;
    padding: 0.4em;
-   overflow: auto;
-   box-sizing: border-box;
+   overflow: scroll;
+   box-sizing: content-box;
    overflow-x: hidden;
+   -webkit-overflow-scrolling: touch;
+   -ms-overflow-style: none;
+   position: fixed;
+   scrollbar-width: none;
 }
-
 .text {
+  margin-left: 60%;
   max-width: 800px;
   width: 30%;
   height: 100%;
