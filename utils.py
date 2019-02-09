@@ -3,6 +3,7 @@ import os.path
 import dateutil
 import bs4
 import base64
+import time
 
 import dash_html_components
 
@@ -17,15 +18,18 @@ def listBlogs(path):
                 break
     return targets
 
-def loadEntries(blogPath, entryType):
+def loadEntries(blogPath, entryType, startEntry = 0, timeout = 60):
     entryPath = os.path.join(blogPath, entryType + '.txt')
-
+    tstart = time.time()
     entries = []
+    restartPoint = None
     with open(entryPath, encoding = 'utf8') as f:
         entries = []
         dat = {}
         inBody = False
-        for e in f:
+        for i, e in enumerate(f):
+            if i < startEntry:
+                continue
             if inBody:
                 if e.startswith('Tags:'):
                     k, *v = e.split(':')
@@ -33,6 +37,9 @@ def loadEntries(blogPath, entryType):
                     inBody = False
                     entries.append(Entry(dat))
                     dat = {}
+                    if time.time() - tstart > timeout:
+                        restartPoint = i + 1
+                        break
                 else:
                     try:
                         dat['text'] += e
@@ -50,7 +57,7 @@ def loadEntries(blogPath, entryType):
                     dat['text'] = ':'.join(v).strip()
                 elif entryType not in ['images', 'texts'] and e.startswith('Reblog name:'):
                     inBody = True
-    return sorted(entries, key = lambda x : x.date, reverse = True)
+    return sorted(entries, key = lambda x : x.date, reverse = True), restartPoint
 
 class Entry(object):
     def __init__(self, dat):
@@ -86,7 +93,7 @@ class Entry(object):
 
     @property
     def tags(self):
-        return tuple([t for t in self.get('Tags', '').strip().split(', ') if len(t) > 0])
+        return tuple([t for t in self.get('Tags', '').strip().lower().split(', ') if len(t) > 0])
 
     @property
     def date(self):
@@ -98,14 +105,15 @@ def encode_image(path):
         return 'data:image/{};base64,{}'.format(extension,base64.b64encode(f.read()).decode('utf-8'))
         S
 
-def filterAttributes(a):
+def filterAttributes(a, comp):
     ret = {}
+    comp_components = comp()._prop_names
     for k, v in a.items():
         if k == 'class':
             k = 'className'
         elif k == 'style':
             continue
-        elif k in unknowns:
+        elif k not in comp_components:
             continue
         ret[k] = v
     return ret
@@ -117,4 +125,5 @@ def toDashHTML(t):
     else:
         for c in t.children:
             children.append(toDashHTML(c))
-    return getattr(dash_html_components, t.name.title(), dash_html_components.Div)(children, **filterAttributes(t.attrs))
+    compType = getattr(dash_html_components, t.name.title(), dash_html_components.Div)
+    return compType(children, **filterAttributes(t.attrs, compType))

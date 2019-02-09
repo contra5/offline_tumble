@@ -185,10 +185,17 @@ class MultiDashFront(multiTumDis.BackendManager):
                     options=[{'value' : n, 'label' : n} for n in self.names],
                     value=self['data-blogName'],
                 ),
+                #drc.NamedDropdown(
+                #    name = 'Tag Filter',
+                #    id = 'tag_filter',
+                #    options=self.genCurrentTagOptions(withNum = False),
+                #    value='None',
+                #    multi = True,
+                #),
                 drc.NamedDropdown(
                     name = 'Tags',
                     id = 'tags_selector',
-                    options=self.genCurrentTagOptions(withNum = True),
+                    options=self.genTypeTags(withNum = True),
                     value='None',
                 ),
                 drc.NamedSlider(
@@ -225,7 +232,7 @@ class MultiDashFront(multiTumDis.BackendManager):
 
     def run(self, debug = True):
         #webbrowser.open('http://127.0.0.1:8050/', new=2, autoraise=False)
-        self.app.run_server(debug=False)
+        self.app.run_server(debug=True)
 
 def main():
     logging.basicConfig(

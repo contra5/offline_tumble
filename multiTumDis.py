@@ -46,6 +46,7 @@ class BackendManager(object):
             raise RuntimeError(f"Worker had problems starting up: isReady {isReady}")
 
         self.names = self('getNames')
+        self.tagsMap = self.loadTags('.')
         self.startDisplay()
 
         logging.info(f"Worker started with: {len(self.names)} blogs found")
@@ -123,6 +124,12 @@ class BackendManager(object):
     def getTags(self, blog):
         return self
 
+    def genTypeTags(self, withNum = True):
+        if withNum:
+            return  [('None', len(self.names))] + sorted(self.tagsMap[self['data-postType']].items(), key = lambda x : x[1])
+        else:
+            return ['None'] + [k for k,v in sorted(self.tagsMap[self['data-postType']].items(), key = lambda x : x[1])]
+
     def genCurrentTagOptions(self, withNum = True):
         ret = [{'value' : 'None', 'label' : f'{self["data-maxIndex"]} None'}]
         for c, t in self['data-typeTags']:
@@ -134,10 +141,13 @@ class BackendManager(object):
 
     def genPostSelectorMarks(self):
         maxVal = self['data-maxIndex']
-        if maxVal >= 10:
-            return {int(i) : str(i) for i in np.linspace(0, maxVal , 10, dtype = int)}
+        if maxVal < 25:
+            if maxVal <= 7:
+                return {i : f"{i}" for i in range(maxVal)}
+            else:
+                return {int(i) : str(i) for i in np.linspace(0, maxVal , 5, dtype = int)}
         else:
-            return {i : f"{i}" for i in range(maxVal)}
+            return {int(i) : str(i) for i in np.linspace(0, maxVal , 10, dtype = int)}
 
     def genTypesDict(self):
         return [{'value' : t, 'label' : t } for t in self['data-postTypes']]
@@ -148,6 +158,26 @@ class BackendManager(object):
         if ended != 'done':
             raise RuntimeError(f"Something weird happend when quitting: {ended}")
         self.TumblrBlogs.join()
+
+    def loadTags(self, tagsDir):
+        tagsMaps = {}
+        for e in os.scandir(tagsDir):
+            if e.name.endswith('index.json'):
+                tagsMaps[e.name.split('-')[0]] = self.loadTagsFile(e.path)
+        return tagsMaps
+
+    def loadTagsFile(self, path):
+        tagsMap = {}
+        with open(path) as f:
+            for l in f:
+                j = json.loads(l)
+                blog = j['blog']
+                for t, c in j['tags']:
+                    try:
+                        tagsMap[t] += 1
+                    except KeyError:
+                        tagsMap[t] = 1
+        return tagsMap
 
     def __del__(self):
         if self.TumblrBlogs.is_alive():
@@ -177,9 +207,8 @@ class MultiCollection(multiprocessing.Process):
         self.outputQ.put(dat)
 
     def findNewTask(self):
-        logging.debug(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
-        #time.sleep(.5)
-        return None
+        logging.info(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
+        return 'loadBlog', self.names[random.randint(0, len(self.names) - 1)]
 
     def getNames(self, *args):
         logging.info(f'getname {args}')
@@ -237,9 +266,7 @@ class MultiCollection(multiprocessing.Process):
                     logging.info("end received, exiting")
                     self.putQue('done')
                     break
-                else:
-                    #logging.info(f"task received: {newTask}")
-                    self.runTask(*newTask)
+                self.runTask(*newTask)
         except Exception as e:
             logging.error("Error occured in worker thread")
             logging.error(e)
@@ -255,6 +282,7 @@ class Blog(object):
         #self.currentType = 'texts' if 'texts' in self.postTypes else self.postTypes[0]
         self.tags = {}
         self.posts = {}
+        self.posts_incomplete = {}
         self.images = {}
 
     def getPostTypes(self):
@@ -266,7 +294,17 @@ class Blog(object):
 
     def getTypeEntries(self, postType):
         if postType not in self.posts:
-            self.posts[postType] = utils.loadEntries(self.path, postType)
+            entries, restartPoint = utils.loadEntries(self.path, postType)
+            if restartPoint is not None:
+                self.posts_incomplete[postType] = restartPoint
+            self.posts[postType] = entries
+        elif postType in self.posts_incomplete:
+            entries, restartPoint = utils.loadEntries(self.path, postType, startEntry = self.posts_incomplete[postType])
+            if restartPoint is not None:
+                self.posts_incomplete[postType] = restartPoint
+            else:
+                del self.posts_incomplete[postType]
+            self.posts[postType] = sorted(self.posts[postType] + entries, key = lambda x : x.date, reverse = True)
         return self.posts[postType]
 
     def genTypeTagsDict(self, postType):
@@ -315,14 +353,22 @@ class Blog(object):
             return tuple([t for t, e in sorted(self.genTypeTagsDict(postType).items(), key = lambda x: len(x[1]), reverse = True)])
 
     def setupInfoDict(self):
+        tstart = time.time()
         infosDict =  {
             'data-blogName' : self.name,
             'data-postTypes' : self.postTypes,
-            'data-postType' : 'texts' if 'texts' in self.postTypes else self.postTypes[0],
+            'data-postType' : 'images' if 'images' in self.postTypes else self.postTypes[0],
             'data-postTag' : 'None',
             'data-postIndex' : 0,
         }
-        infosDict.update(self.getDerivedInfos(infosDict['data-postType'],infosDict['data-postTag'],infosDict['data-postIndex']))
+        logging.info(f"loading basic info for {self.name} took {time.time() - tstart:.3f}s")
+        tstart = time.time()
+        infosDict.update(self.getDerivedInfos(
+                                infosDict['data-postType'],
+                                infosDict['data-postTag'],
+                                infosDict['data-postIndex'],
+                                ))
+        logging.info(f"loading extra info for {self.name} took {time.time() - tstart:.3f}s")
         return infosDict
 
     def getDerivedInfos(self, postType, postTag, postIndex):
