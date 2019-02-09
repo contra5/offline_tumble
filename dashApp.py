@@ -16,6 +16,7 @@ import logging
 import multiTumDis
 import dash_reusable_components as drc
 
+logger = logging.getLogger(__name__)
 
 class MultiDashFront(multiTumDis.BackendManager):
     def __init__(self, tumblrsPath):
@@ -41,7 +42,7 @@ class MultiDashFront(multiTumDis.BackendManager):
             else:
                 postIndex = (currentLoc - 1) % (maxVal + 1)
             finalVal = (postIndex, next_presses, previous_presses)
-            logging.debug(f"Button pressed:input (L: {currentLoc} N : {next_presses} P : {previous_presses}), intial {intialState}, final {finalVal}")
+            logger.debug(f"Button pressed:input (L: {currentLoc} N : {next_presses} P : {previous_presses}), intial {intialState}, final {finalVal}")
             return finalVal
 
         self.app.callback(
@@ -72,7 +73,7 @@ class MultiDashFront(multiTumDis.BackendManager):
 
     def addDraw(self, outputName, outputValue, func, inputTargets):
         def drawFunc(*updateVals):
-            logging.debug(f"Drawing: {outputName} {outputValue}")
+            logger.debug(f"Drawing: {outputName} {outputValue}")
             return func()
 
         inputsMap ={
@@ -91,7 +92,7 @@ class MultiDashFront(multiTumDis.BackendManager):
     def addUpdateCallbacks(self):
         def changeBlog(new_blogName, current_count):
             self.loadBlog(new_blogName)
-            logging.debug(f"Update blog: {current_count + 1} loading new blog: {new_blogName}")
+            logger.debug(f"Update blog: {current_count + 1} loading new blog: {new_blogName}")
             return current_count + 1
 
         def changePostType(new_postType, current_count):
@@ -99,24 +100,24 @@ class MultiDashFront(multiTumDis.BackendManager):
             self['data-postTag'] = 'None'
             self['data-postIndex'] = 0
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update postType: {current_count + 1}")
+            logger.debug(f"Update postType: {current_count + 1}")
             return current_count + 1
 
         def changePostTag(new_postTag, current_count):
             self['data-postTag'] = new_postTag
             self['data-postIndex'] = 0
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update postTag: {current_count + 1}")
+            logger.debug(f"Update postTag: {current_count + 1}")
             return current_count + 1
 
         def changePostIndex(new_postIndex, current_count):
             self['data-postIndex'] = new_postIndex
             self.currentBlogInfo.update(self.getDerivedInfos())
-            logging.debug(f"Update postIndex: {current_count + 1}")
+            logger.debug(f"Update postIndex: {current_count + 1}")
             return current_count + 1
 
         def changePostButtonIndex(new_buttonsPresses, current_count):
-            logging.debug(f"Update PostButtonIndex: {current_count + 1}")
+            logger.debug(f"Update PostButtonIndex: {current_count + 1}")
             self['data-postIndex'] = new_buttonsPresses[0]
             self.currentBlogInfo.update(self.getDerivedInfos())
             return current_count + 1
@@ -163,7 +164,7 @@ class MultiDashFront(multiTumDis.BackendManager):
         inputDep = Input(selectorName, 'value')
 
         def stateChange(new_val):
-            logging.info(f"User changed {selectorName} to {new_val}")
+            logger.info(f"User changed {selectorName} to {new_val}")
             return new_val
 
         self.app.callback(outputDep, inputs=[inputDep])(stateChange)
@@ -232,13 +233,16 @@ class MultiDashFront(multiTumDis.BackendManager):
 
     def run(self, debug = True):
         #webbrowser.open('http://127.0.0.1:8050/', new=2, autoraise=False)
-        self.app.run_server(debug=True)
+        self.app.run_server(debug=False)
 
 def main():
     logging.basicConfig(
                     format='%(asctime)s App %(levelname)s: %(message)s',
-                    datefmt='%I:%M:%S',
-                    level=logging.INFO)
+                    datefmt='%I:%M:%S')
+
+    logger.setLevel(logging.INFO)
+    logging.getLogger('multiTumDis').setLevel(logging.INFO)
+
     App = MultiDashFront( '../blogs/')
     App.run()
 

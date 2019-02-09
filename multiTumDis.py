@@ -24,10 +24,12 @@ tumblrsPath = '../blogs/'
 
 unknowns = ['autoplay', 'allow', 'align', 'border', 'frameborder', 'imageanchor', 'color']
 
-logging.basicConfig(
-                format='%(asctime)s Backend %(levelname)s: %(message)s',
-                datefmt='%I:%M:%S',
-                level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+#logging.basicConfig(
+#                format='%(asctime)s Backend %(levelname)s: %(message)s',
+#                datefmt='%I:%M:%S',
+#                level=logging.INFO)
 
 class BackendManager(object):
     def __init__(self, path = tumblrsPath):
@@ -49,7 +51,7 @@ class BackendManager(object):
         self.tagsMap = self.loadTags('.')
         self.startDisplay()
 
-        logging.info(f"Worker started with: {len(self.names)} blogs found")
+        logger.info(f"Worker started with: {len(self.names)} blogs found")
 
     def __call__(self, property, *args):
         self.writeQueue.put((property, *args))
@@ -110,7 +112,7 @@ class BackendManager(object):
     def startDisplay(self, startingBlog = None):
         if startingBlog is None:
             startingBlog = self.names[random.randint(0, len(self.names) - 1)]
-        logging.info(f"Starting display with: {startingBlog}")
+        logger.info(f"Starting display with: {startingBlog}")
         self.loadBlog(startingBlog)
 
         return self.currentHTML()
@@ -153,7 +155,7 @@ class BackendManager(object):
         return [{'value' : t, 'label' : t } for t in self['data-postTypes']]
 
     def end(self):
-        logging.info("Ending worker")
+        logger.info("Ending worker")
         ended = self('end')
         if ended != 'done':
             raise RuntimeError(f"Something weird happend when quitting: {ended}")
@@ -207,11 +209,11 @@ class MultiCollection(multiprocessing.Process):
         self.outputQ.put(dat)
 
     def findNewTask(self):
-        logging.info(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
+        logger.info(f"finding new task, in queue: {self.inputQ.qsize()}, out queue: {self.outputQ.qsize()}")
         return 'loadBlog', self.names[random.randint(0, len(self.names) - 1)]
 
     def getNames(self, *args):
-        logging.info(f'getname {args}')
+        logger.info(f'getname {args}')
         return self.names
 
     def loadBlog(self, blogName):
@@ -219,14 +221,14 @@ class MultiCollection(multiprocessing.Process):
         if blogName not in self.blogs:
             self.blogs['blogName'] = Blog(os.path.join(self.path, blogName), blogName)
         blog = self.blogs['blogName'].setupInfoDict()
-        logging.info(f"loadBlog({blogName}) took {time.time() - tstart:.3f}s")
+        logger.info(f"loadBlog({blogName}) took {time.time() - tstart:.3f}s")
         return blog
 
 
     def getHTML(self, blogName, postType, postTag, postIndex):
         tstart = time.time()
         htmlDat = self.blogs['blogName'].getPostHTML(postType, postTag, postIndex)
-        logging.info(f"getHTML({blogName}, {postType}, {postTag}, {postIndex}) took {time.time() - tstart:.3f}s")
+        logger.info(f"getHTML({blogName}, {postType}, {postTag}, {postIndex}) took {time.time() - tstart:.3f}s")
         return htmlDat
 
     def getDerivedInfos(self, blogName, postType, postTag, postIndex):
@@ -245,7 +247,7 @@ class MultiCollection(multiprocessing.Process):
         return self.blogs['blogName'].getSortedTags(postType, withCounts = True)
 
     def runTask(self, task, *args):
-        logging.info(f"Running: {task}({args})")
+        logger.info(f"Running: {task}({args})")
         try:
             f = getattr(self, task)
             ret = f(*args)
@@ -254,22 +256,22 @@ class MultiCollection(multiprocessing.Process):
         self.putQue(ret)
 
     def run(self):
-        logging.info(f"Starting run with {self.name} for {self.path}")
+        logger.info(f"Starting run with {self.name} for {self.path}")
         self.outputQ.put("ready")
         try:
             while True:
                 newTask = self.checkQue()
-                logging.debug(f"New task: {newTask}")
+                logger.debug(f"New task: {newTask}")
                 if not newTask:
                     newTask = self.findNewTask()
                 elif newTask[0] == 'end':
-                    logging.info("end received, exiting")
+                    logger.info("end received, exiting")
                     self.putQue('done')
                     break
                 self.runTask(*newTask)
         except Exception as e:
-            logging.error("Error occured in worker thread")
-            logging.error(e)
+            logger.error("Error occured in worker thread")
+            logger.error(e)
             self.putQue("ERROR")
             raise
 
@@ -361,14 +363,14 @@ class Blog(object):
             'data-postTag' : 'None',
             'data-postIndex' : 0,
         }
-        logging.info(f"loading basic info for {self.name} took {time.time() - tstart:.3f}s")
+        logger.info(f"loading basic info for {self.name} took {time.time() - tstart:.3f}s")
         tstart = time.time()
         infosDict.update(self.getDerivedInfos(
                                 infosDict['data-postType'],
                                 infosDict['data-postTag'],
                                 infosDict['data-postIndex'],
                                 ))
-        logging.info(f"loading extra info for {self.name} took {time.time() - tstart:.3f}s")
+        logger.info(f"loading extra info for {self.name} took {time.time() - tstart:.3f}s")
         return infosDict
 
     def getDerivedInfos(self, postType, postTag, postIndex):
